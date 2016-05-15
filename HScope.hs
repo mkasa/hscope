@@ -15,7 +15,6 @@ import Data.Maybe
 import Data.Serialize
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector as V
-import Control.Applicative ((<$>), (<*>))
 import System.IO (BufferMode (..), hSetBuffering, hFlush, hPutStrLn, stdout, stderr)
 import Data.Generics.Uniplate.Data (transformBiM)
 import System.Directory (doesFileExist)
@@ -39,7 +38,7 @@ type Lines = V.Vector (Int, B.ByteString)
 
 instance Serialize Info where
     put (Info ity file line bs) = do
-        put $ fromEnum ity 
+        put $ fromEnum ity
         put file
         put line
         put bs
@@ -180,20 +179,22 @@ buildOne cfg f = do
                     -- liftIO $ putStrLn $ show modul
 
 handleQuery :: ReadCDB -> String -> IO ()
-handleQuery cdb ('1':str) = findInfo Definition cdb str
-handleQuery cdb ('3':str) = findInfo Call cdb str
-handleQuery cdb ('4':str) = do
-    files <- fmap (map B.unpack) $ getBS cdb (B.pack "0_hs_files")
-    lns <- fmap lines $ readProcess "grep" ("-n":"-H":str:files) ""
-    outputLines $ map go lns
-    where go l = let (f, rest1) = break (':' ==) l
-                     (n, rest2) = break (':' ==) $ drop 1 rest1
-                  in f ++ " <unknown> " ++ n ++ " " ++ drop 1 rest2 
-handleQuery cdb ('7':str) = do
-    files <- fmap (map B.unpack) $ getBS cdb $ B.pack "0_hs_files"
-    outputLines $ map go $ filter (isInfixOf str) files
-    where go f = f ++ " <unknown> 1 <unknown>"
-handleQuery _ _ = return ()
+handleQuery cdb (v:str)
+  | v == '1' || v == 'd' = findInfo Definition cdb str
+  | v == '3' || v == 'c' = findInfo Call cdb str
+  | v == '4' || v == 't' = do
+                               files <- fmap (map B.unpack) $ getBS cdb (B.pack "0_hs_files")
+                               lns <- fmap lines $ readProcess "grep" ("-n":"-H":str:files) ""
+                               let go l = let (f, rest1) = break (':' ==) l
+                                              (n, rest2) = break (':' ==) $ drop 1 rest1
+                                          in f ++ " <unknown> " ++ n ++ " " ++ drop 1 rest2 
+                               outputLines $ map go lns
+  | v == '7' || v == 'f' = do
+                               files <- fmap (map B.unpack) $ getBS cdb $ B.pack "0_hs_files"
+                               let go f = f ++ " <unknown> 1 <unknown>"
+                               outputLines $ map go $ filter (isInfixOf str) files
+handleQuery _ _ = do
+    outputLines []
 
 runLines :: ReadCDB -> IO ()
 runLines cdb = do
